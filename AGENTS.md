@@ -4,6 +4,8 @@ This repository is an open experiment in robotics software with minimal supervis
 
 Use English throughout the project, including documentation, code comments, and contribution descriptions. Work on the requested contribution and describe validation honestly. Keep public project descriptions open-ended: do not prescribe a destination, suggest contribution directions, or add example project ideas. Never operate physical equipment or use credentials without explicit authorization for that action.
 
+Preserve published Git history. Use normal commits and pushes for ongoing updates; rewrite history only when the repository owner explicitly requests it.
+
 ## Code Review Rules
 
 ### Preserve the open experiment
