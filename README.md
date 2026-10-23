@@ -28,6 +28,12 @@ The people who show up will make this place what it is. Meet the [contributors](
 
 Started **2026-10-23**. Follow the [changelog](CHANGELOG.md) and [PR history](https://github.com/fan-ziqi/fill-me-with-robotics/pulls) as the story unfolds.
 
+## Disclaimer
+
+This is an open community experiment. Contributions may be incomplete, untested, or unsuitable for your intended use. Inclusion in this repository, a merged PR, or an automated review does not guarantee correctness, security, or safety.
+
+Use the material at your own risk, subject to applicable law and its license. You are responsible for evaluating and validating it before use, especially before allowing software to operate physical equipment. Original contributions are provided on an "AS IS" basis under the [Apache License 2.0](LICENSE), which governs their warranty disclaimers and limitations of liability. This notice does not modify the license or override applicable law or separate written agreements.
+
 ## License
 
 Copyright 2026 Ziqi Fan and contributors. Original contributions use the [Apache License 2.0](LICENSE). Clearly identified third-party material retains its own license; include the required notices and permission to redistribute it. Linking to a resource does not relicense it.

@@ -6,6 +6,7 @@ Notable changes are recorded here, newest first.
 
 ### Added
 
+- Added a README disclaimer covering validation limits, automated review, and usage risks.
 - Opened the repository for community contributions to robotics software.
 - Added contribution rules, a pull request template, and Codex review guidance.
 - Added contributor credits and this changelog.
