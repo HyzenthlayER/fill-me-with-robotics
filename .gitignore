@@ -1,0 +1,14 @@
+# Local secrets. Commit a placeholder .env.example if configuration is needed.
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Operating-system and editor leftovers.
+.DS_Store
+Thumbs.db
+*~
+*.swp
+*.swo
+
+# Add language-specific generated files beside the contribution that creates them.
