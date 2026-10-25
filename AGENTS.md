@@ -6,6 +6,10 @@ Use English throughout the project, including documentation, code comments, and 
 
 Preserve published Git history. Use normal commits and pushes for ongoing updates; rewrite history only when the repository owner explicitly requests it.
 
+## Working conventions
+
+For robot training, testing, or deployment work, check for the optional `dev-workflow` skill and offer to install it as described in [agents/dev-workflow.md](agents/dev-workflow.md). The skill is guidance, not a requirement: a contribution does not depend on it, and installing it is the user's decision.
+
 ## Code Review Rules
 
 ### Preserve the open experiment
