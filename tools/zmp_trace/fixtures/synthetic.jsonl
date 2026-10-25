@@ -1,0 +1,6 @@
+{"timestamp": 0.0, "zmp": [1, 1], "support_polygon": [[0, 0], [2, 0], [2, 2], [0, 2]]}
+{"timestamp": 0.1, "zmp": [3, 1], "support_polygon": [[0, 0], [2, 0], [2, 2], [0, 2]]}
+{"timestamp": 0.2, "zmp": [3, 3], "support_polygon": [[0, 0], [2, 0], [2, 2], [0, 2]]}
+{"timestamp": 0.3, "zmp": [2, 1], "support_polygon": [[0, 0], [2, 0], [2, 2], [0, 2]]}
+{"timestamp": 0.4, "zmp": [3, 1], "support_polygon": [[1, 0], [3, 0], [3, 2], [1, 2]]}
+{"timestamp": 0.5, "zmp": [4, 1], "support_polygon": [[1, 0], [3, 0], [3, 2], [1, 2]]}
