@@ -1,254 +1,108 @@
-# Contact Composer — Modules and Interfaces
+# Contact Composer — Implemented Modules and Interfaces
 
-Version: 0.1 draft | Date: 2026-10-26 | Status: proposed design, no implementation
+Version 0.1 | 2026-10-26. See [requirements](REQUIREMENTS.md), [usage](../README.md), and [executed checks](DEBUG_LOG.md).
 
-Product requirements and acceptance gates are defined in [REQUIREMENTS.md](REQUIREMENTS.md). All APIs, paths, and commands below are proposed.
-
-## 1. Architecture
+## Architecture
 
 ```mermaid
 flowchart TD
-    UI[Workspace and timeline] --> DOC[Project document]
-    DOC --> API[Local job API]
-    API --> VAL[Input validation]
-    VAL --> PHASE[Phase compiler]
-    PHASE --> PLAN[Pose and force planner]
-    MODEL[Robot and scene model] --> PLAN
-    PLAN --> TRAJ[Trajectory refinement]
-    TRAJ --> CHECK[Dense validation]
+    UI[React timeline / scene / inspector] --> P[Versioned project JSON]
+    P --> API[Loopback FastAPI service]
+    API --> JOB[Spawned numerical worker]
+    P --> CLI[Headless CLI]
+    CLI --> CORE[Schedule / pose / force solver]
+    JOB --> CORE
+    MODEL[Original MuJoCo model] --> CORE
+    CORE --> CHECK[Independent trajectory checks]
     CHECK --> PREVIEW[Kinematic preview]
-    CHECK --> SIM[Explicit simulation replay]
-    MODEL --> SIM
-    CHECK --> DIAG[Diagnostics]
-    SIM --> DIAG
-    DIAG --> UI
-    CHECK --> EXPORT[Export and provenance]
-    SIM --> EXPORT
+    CHECK --> REPLAY[Independent torque-only replay]
+    MODEL --> REPLAY
+    REPLAY --> REPORT[Measurements / diagnostics / bundles]
+    CHECK --> REPORT
+    REPORT --> UI
 ```
 
-The numerical core has no dependency on the web UI or HTTP server. UI state contains authored data and views; the backend owns canonical validation and numerical results. Model parameters have one source of truth for planning and simulation.
+The numerical core has no HTTP/frontend dependency. Every worker receives an immutable project snapshot. Results are bound to its complete hash, including revision, model identity, controller settings and thresholds.
 
-## 2. Module responsibilities
+## Module map
 
-| Module | Responsibility and main functions | Inputs → outputs | Requirements |
-| --- | --- | --- | --- |
-| M01 Project document | Schema, defaults, version checks, IDs, canonical serialization, hashing, save/load; command-based undo/redo on the frontend. | JSON + edits → validated document/revision. | R01, R03, R04, R12 |
-| M02 Scene and model | Original robot definition, surface frames, geometry, FK/Jacobians, gravity, collision-pair policy, limit lookup; visual scene and anchor picking. | Robot manifest + scene + q → geometry, dynamics quantities, render data. | R02, R06, R07, R10 |
-| M03 Contact timeline | Four tracks; block insertion/move/resize/copy/delete; snapping, numeric edits, selection, issue markers, time navigation. | User events → document commands; result data → overlays. | R03, R09 |
-| M04 Schedule compiler | Interval validation, phases, event ordering, active contact sets, approach/swing tasks, force-cap ramps, target interpolation. | Valid project → immutable PhasePlan. | R04, R05 |
-| M05 Pose and force planner | Constrained pose search, fixed-pose force/torque QP, warm starts, candidate ranking, solver progress and residuals. | Model + PhasePlan + settings → candidate samples and scoped solver outcomes. | R06, R08 |
-| M06 Trajectory and validator | Contact-preserving refinement, time/rate checks, finite derivatives, dense/adaptive sampling, independent residual recomputation. | Candidate samples → TrajectoryResult + ValidationReport. | R07, R08, R09 |
-| M07 Simulation and controller | Model initialization, optional disclosed settling, bounded joint control, forward stepping, contact measurement, stop/reset, replay evaluation. | Project + valid candidate + controller settings → ReplayResult. | R10, R11 |
-| M08 Diagnostics and plots | Normalize issue records, identify failing intervals/constraints, display residuals and thresholds, compare planned/measured data, generate suggestions. | Solver/check/replay evidence → diagnostics and plots. | R08, R11 |
-| M09 Local API and jobs | Localhost service, one numerical worker initially, progress stream, cancellation, revision isolation, errors, resource limits. | Requests → job IDs, progress and immutable artifacts. | R13 |
-| M10 Export and examples | Project/result export, metadata, checksums, example scenarios, CLI entry points, documented headless checks. | Project + results → reproducible artifact folder. | R12, R14 |
+| Module | Implementation | Functions and independent checks |
+| --- | --- | --- |
+| M01 Project | `project.py`, `editor.ts` | Strict bounded schema, finite data, references, atomic JSON save, SHA-256, 100-step transactional history. Round-trip, invalid imports, overlap and history tests. |
+| M02 Model | `spec.py`, `model.py`, `Scene.tsx`, `kinematics.ts` | Original 11-DOF MJCF, FK/Jacobians, gravity, collisions, shared manifest and anchor picking. Numerical derivative and browser/MuJoCo agreement tests. |
+| M03 Timeline | `Timeline.tsx`, `Inspector.tsx`, `main.tsx` | Four tracks; tick drag/resize; create/copy/delete; anchors and times; issue markers; planned/measured support; seek/play. Editor tests and browser interactions. |
+| M04 Schedule | `schedule.py` | Half-open intervals, terminal left-limit, phase events, force-cap ramps, smooth swing/target tasks. Boundary/continuity/ramp tests. |
+| M05 Planner | `planning.py` | Analytic IK, constrained SLSQP, OSQP static forces, coupled pose/force fallback. Generalized equilibrium and fixed-pose failure fixtures. |
+| M06 Trajectory | `trajectory.py` | Direct 100 Hz construction, derivatives, independent array/geometry/force/rate/inertia checks, additional geometry midpoints. Corrupted/missing data tests. |
+| M07 Replay | `controller.py`, `simulation.py` | Separate MuJoCo state, torque-only stepping, whole-body control or joint PD, actual contacts, cancellation and criteria. Standing, full demo and degraded-controller tests. |
+| M08 Diagnostics | `diagnostics.py`, `Diagnostics.tsx` | Scoped evidence, adjacent-issue coalescing, force/torque comparison, metrics and click-to-time reports. Source isolation tests. |
+| M09 Service | `service.py` | One spawned worker, polling progress, cancellation, immutable revisions, bounded requests, loopback hosts/origins and downloads. API/process tests. |
+| M10 Export | `export.py`, `examples.py`, `cli.py`, `examples/` | New-directory bundles, model XML, checksums, versions, examples and CLI. Round-trip/tamper/no-overwrite/exit-code tests. |
 
-## 3. Detailed module behavior
+Python paths are under `src/contact_composer`; TypeScript paths are under `frontend/src`. Each module's test commands and outcomes are in the debug log.
 
-### M01: Project document
+## Coordinates and contact semantics
 
-The canonical project contains authored intent only. Generated states and replay traces live in separate result files referencing the project hash. This prevents editing a reference trajectory from silently changing the original schedule.
+- World coordinates are `(x,z)` in meters; gravity points along negative z. Pitch and limb rotations follow MuJoCo's y-axis convention. Display coordinates invert z only.
+- `q/dq/ddq` columns are `base_x`, `base_z`, `base_pitch`, `left_hip`, `left_knee`, `right_hip`, `right_knee`, `left_shoulder`, `left_elbow`, `right_shoulder`, `right_elbow`. Angles are radians.
+- The base has three unactuated DOFs. Torques have eight columns in limb-joint order; limits are 45 N·m for legs and 18 N·m for arms.
+- Effector order is `left_foot`, `right_foot`, `left_hand`, `right_hand`. Endpoint arrays contain sphere centers. Surface anchors receive a radius offset along the outward normal for center-position constraints.
+- Contact forces are **environment-on-robot forces**, in world `(x,z)` coordinates. Static equilibrium uses the actual sphere/surface contact-point Jacobian. The renderer draws arrows at endpoint centers.
+- Surfaces have a segment, unit outward normal, friction coefficient and force cap. Constraints are `fn >= 0`, `abs(ft) <= mu*fn`, `fn <= cap(t)`.
+- Contacts are active on `[start_tick,end_tick)`. The final sample uses the left-limit active set. Ticks are 0.05 s; duration is 2–20 s; blocks last at least 0.20 s.
+- Caps have smooth two-tick entrance/exit ramps. Initial/terminal supports and contiguous identical anchors retain capacity. Different adjacent anchors require a release gap.
+- Quintic interpolation with a quartic normal-clearance arch defines swing intent. Prescribed contact and geometric touching are distinct from a measured load.
 
-Reject unknown major schema versions. Use stable IDs for contacts, surfaces, targets, and diagnostics. JSON contains no executable code or arbitrary filesystem paths. Save is atomic; an invalid import leaves the current document intact. Undo/redo restores complete edit transactions, including the anchor and timing changes of a moved block.
+The manifest enumerates all robot/environment and endpoint/torso collision pairs. Other self-collisions are excluded because limbs share a planar projection. Surface boxes extend 5 cm behind the declared plane. Exported `model.xml` captures the actual model/contact parameters.
 
-### M02: Robot and scene
+## Planning and independent checks
 
-Expose `load_builtin_model`, `forward_kinematics`, `contact_jacobian`, `gravity_compensation`, `collision_distances`, and `limits`. Function names describe interfaces, not an existing library.
+Each 100 Hz sample first attempts exact two-link IK with the requested/current base pose. A candidate must satisfy joint limits, collision checks, hard targets and the force QP. Joint-posture targets use nonlinear search. Otherwise SLSQP searches constrained poses, with a coupled pose/force fallback when the first pose cannot balance.
 
-The same manifest generates the solver model and MuJoCo model. Validate masses, inertia, units, actuator mapping, and endpoint offsets. Confirm the gravity sign and actuator-selection matrix using a known analytical fixture. Do not duplicate lengths or masses in frontend drawing code.
+The static QP solves all 11 equations `g(q) = S^T tau + sum(J_contact(q)^T f)`. Forces/torques are normalized by `m*g`, with the manifest's one-meter characteristic length for moments. Residuals and inequalities are recomputed independently of solver success labels. QP infeasibility concerns that fixed pose; nonlinear failure means no solution was found in that attempt.
 
-Only the supported built-in model and primitive scenes are loadable in P0. Rendering may use sampled link transforms supplied by the backend; lightweight local rendering must use generated model geometry rather than independent physics parameters.
+Validation checks finite array shapes, full 100 Hz/event coverage, initial pose, derivatives, FK endpoints, scheduled/loaded masks, contact errors, limits, checked collisions, hard targets, equilibrium, inactive zero forces, friction/caps, actuator limits and rates. It screens `M(q)ddq + bias(q,dq) - g(q)` against 5% of the gravity scales. Interpolated midpoint geometry is also checked when a sample is within 2 cm of a surface or generalized-coordinate change exceeds 0.02. The additional sample count is recorded.
 
-### M03: Timeline
+Direct construction at 100 Hz replaces the originally proposed 20 Hz seed/refinement stage. Extra midpoints are bounded sampling, not recursive continuous-time certificates. A timeout/cancellation retains partial arrays and an incomplete status. No success label claims hardware validity.
 
-Use integer ticks internally. Moving/resizing a block updates its interval in one undo transaction. Invalid edits remain visibly invalid or are rejected with a reason; they must not be silently clipped into a different contact sequence. Empty intervals denote swing/free motion.
+## Independent replay
 
-The timeline shows intended contact blocks and separate planned/measured load markers. Selecting a block selects its scene anchor. Scrubbing selects a reference or replay frame without launching a solve.
+Replay revalidates numerical arrays, initializes its own `MjData` once, and never assigns poses after initialization. MuJoCo steps at 2 ms; control/logging default to 10 ms. Reference arrays are linearly sampled on the controller clock.
 
-### M04: Schedule compiler
+The default whole-body QP solves over 11 accelerations, eight torques and scheduled forces. It enforces measured-state inverse dynamics, friction/caps, acceleration bounds and torque limits. Its objective uses tracking gains 100/20, stronger base weighting, and soft contact acceleration gains 400/40. Explicit weights/gains live in `controller.py`. Only eight actuator commands enter simulation; controller failure stops and fails replay.
 
-Provide `validate_schedule(project)` and `compile_phases(project)`. The resulting phase plan includes event ticks, active contact IDs, target anchors, load envelopes, and approach/release tasks.
+The optional `joint_pd` mode uses feedforward torque plus configurable joint gains (defaults 60/1). Project `kp/kd` fields apply to that mode. The complete transition example relies on whole-body control.
 
-Validate both sides of an event. A touching endpoint does not automatically count as loaded support. Phase compilation must explicitly preserve initial support and terminal holds. No flight, adhesive contact, simultaneous conflicting anchors, or implicit sliding is introduced.
+Actual forces are transformed from MuJoCo contact frames and signed onto the robot. Records include geometry pairs and separation. Only the intended effector/surface pair contributes to its measured support channel; other sustained loaded contacts fail a separate check.
 
-### M05: Pose and force planner
+Criteria: joint RMS <=2°, base error <=3 cm, pitch error <=5°, loaded drift <=2 cm, support loss <=100 ms, penetration <=5 mm, unexpected load <=100 ms, saturation fraction <=5%, joint-limit excess <=0.01 rad. Loaded means planned normal force >2% of weight; presence means measured normal force >1%. Limits are stored with the result. Aggregate replay criteria report their evaluated interval; planning issues report sampled times. No settling, base actuator or hidden support is used.
 
-The first implementation should use a small, replaceable numerical backend rather than build a general optimizer framework. A practical starting point is SciPy constrained nonlinear optimization for pose/refinement and OSQP for force allocation at a fixed pose. Prototype the coupled problem before fixing the final algorithm and package versions.
+## Local API and lifecycle
 
-At each candidate pose, include all unactuated-base equilibrium rows, eight actuator bounds, unilateral/friction constraints, and force caps. Pose objectives may include target tracking, posture preference, smoothness, and regularization. Hard physical constraints are not made acceptable by increasing a soft reward.
-
-If force allocation fails, the pose search may try another posture. Preserve the distinction between “this fixed pose is infeasible” and “no feasible pose was found.” Warm starts are discarded when their project/model hashes are incompatible.
-
-### M06: Trajectory and validation
-
-Create constrained transitions between poses, including approach, unloading, swing, and load transfer. Compute velocity and acceleration consistently with event timing. A contact-projection step must trigger renewed collision, rate, force, and torque checks.
-
-Implement the validator independently of the optimizer's success flag. Recompute endpoint errors, geometric clearance, equilibrium residuals, contact-force bounds, joint limits, and rate/inertial screens from returned arrays. Sample event boundaries explicitly. An accepted candidate must not depend on a relaxed/slack constraint exceeding its declared acceptance tolerance.
-
-Report the sampling policy and any unvalidated intervals. Partial results are inspectable but do not receive a passed status.
-
-### M07: Replay
-
-Use torque-driven MuJoCo integration. The first controller can use `tau = clip(tau_ff + Kp * position_error + Kd * velocity_error, limits)` with gains stored in the run configuration. This is an implementation starting point, not a guarantee that a candidate will track.
-
-The base remains unactuated. Scheduled contact forces are reference values; they are not applied directly as external supports. Log joint torques, state, contact geometry, and actual contact forces at a common time base. Map MuJoCo contact-local measurements to world x–z before comparison.
-
-Replay checks use actual contact/load state. Label contacts on unintended bodies or surfaces. On nonfinite states, configured termination conditions, or explicit stop, return a partial trace and stop reason. Restart begins from a recorded initial condition rather than the previous run's final state.
-
-### M08: Diagnostics
-
-Use structured evidence, not generated explanations without backing data. Initial issue types include:
-
-`INVALID_INTERVAL`, `CONTACT_CONFLICT`, `ANCHOR_OUTSIDE_SURFACE`, `UNREACHABLE_TARGET`, `JOINT_LIMIT`, `COLLISION`, `STATIC_BALANCE`, `FRICTION_LIMIT`, `TORQUE_LIMIT`, `RATE_LIMIT`, `INERTIAL_SCREEN`, `SOLVER_TIMEOUT`, `SOLVER_NUMERICAL_ERROR`, `CONTACT_LOSS`, `CONTACT_DRIFT`, `TRACKING_ERROR`, and `UNEXPECTED_CONTACT`.
-
-Each issue has a category, severity, interval, affected IDs, measured value, tolerance, evidence source, and interpretation scope. Suggestions such as “extend the transfer interval” or “move the hand anchor” are hypotheses until a new solve/replay validates them. Changing one constraint and obtaining a different result is supporting evidence, not a global causal proof or minimal explanation.
-
-### M09: Jobs and API
-
-The service binds to localhost, bounds request size, checks origin where relevant, and exposes only supported project operations. Numerical work runs outside the UI/server event loop. Start with one worker and one active numerical job; queue or replace requests explicitly.
-
-Cancellation is cooperative where supported; if an optimizer cannot be interrupted safely, isolate and terminate its worker, mark the job cancelled, and restart the worker. No partial result is committed as successful. Result application requires matching project, model, settings, and revision hashes.
-
-### M10: Exports and examples
-
-Exports contain `project.json`, `trajectory.npz` when generated, `diagnostics.json`, `replay.npz` when run, and `manifest.json`. Result arrays use numeric/string dtypes only; no pickled objects. The manifest includes checksums, schema/package versions, command, platform, model, solver/controller settings, thresholds, sampling, seeds, status, and known limits.
-
-Required examples are stable double support, a fixed-pose wall-support comparison, a complete transfer sequence, an unreachable target, a low-friction or torque-limited case, a transition-only failure, and a replay failure. Expected labels are established with checks before shipping.
-
-## 4. Data contracts
-
-### Project
-
-```text
-ProjectV1
-  schema_version: "1.0"
-  id, name, revision
-  units: SI
-  robot: {builtin_id, version, model_hash}
-  timeline: {tick_seconds: 0.05, duration_ticks}
-  initial_state: {q: float[11], dq: float[11]}
-  surfaces[]: {id, segment_start[2], segment_end[2], normal[2], mu, force_cap_n}
-  obstacles[]: {id, primitive, position[2], dimensions[2]}
-  contacts[]: {id, effector_id, surface_id, anchor_u, start_tick, end_tick, mode: "stick"}
-  targets[]: {id, tick, kind, target, weight, tolerance, hardness}
-  settings: {planning, validation, replay}
-```
-
-`anchor_u` is a dimensionless fraction in `[0,1]` along the surface segment. Effector IDs are a closed set. Each target kind has its own schema; target/setting objects cannot contain arbitrary expressions. P0 target kinds are base position, base pitch, joint posture, and swing-endpoint waypoint. Hardness is explicit. Changing robot versions requires compatible migration or rejection, not silent reinterpretation.
-
-### Result arrays
-
-```text
-TrajectoryResult
-  result_id, project_hash, model_hash, settings_hash
-  solve_status, check_status, coverage, solver_metadata
-  time_s: float[N]
-  q, dq, ddq: float[N,11]
-  tau_reference: float[N,8]
-  contact_force_world: float[N,4,2]
-  contact_scheduled, contact_loaded: bool[N,4]
-  contact_block_ids: string[N,4]
-  endpoint_world: float[N,4,2]
-  residuals, issues[]
-
-ReplayResult
-  replay_id, trajectory_result_id, provenance
-  time_s, q_measured, dq_measured, tau_commanded
-  actual_contact_pairs, actual_contact_forces_world
-  measured_endpoint_world, errors, checks, stop_reason
-```
-
-Document array ordering, force sign, source timestamps, and interpolation policy. Reference and replay grids may differ and must be aligned explicitly for plots. Unknown/not-computed values use status fields or omitted arrays, never fabricated zeros. All acceptance-relevant residuals include units and scales.
-
-### Diagnostic record
-
-```json
-{
-  "code": "CONTACT_DRIFT",
-  "severity": "error",
-  "time_interval_s": [3.2, 3.4],
-  "contact_ids": ["right_hand_wall"],
-  "measured": 0.031,
-  "limit": 0.02,
-  "unit": "m",
-  "source": "simulation",
-  "scope": "this replay",
-  "message": "Right-hand contact drift exceeded the configured limit.",
-  "suggestion": "Inspect load transfer, friction, and tracking at this interval."
-}
-```
-
-This is an illustrative record, not a measured result.
-
-## 5. Proposed interfaces
-
-| Interface | Purpose |
+| Endpoint | Contract |
 | --- | --- |
-| `GET /api/models` | Return supported built-in models and versions. |
-| `POST /api/validate` | Validate authored project and return structured issues. |
-| `POST /api/solve` | Submit immutable project snapshot; return job ID. |
-| `POST /api/replay` | Submit compatible trajectory result and replay settings; return job ID. |
-| `GET /api/jobs/{id}` | Read status, progress, revision and artifact references. |
-| `DELETE /api/jobs/{id}` | Request cancellation. |
-| `GET /api/results/{id}` | Read numerical result and manifest. |
-| `WS /api/jobs/{id}/events` | Progress/diagnostic events; include revision and sequence IDs. |
+| `GET /api/models` | Built-in manifest and ordering. |
+| `GET /api/examples` / `GET /api/examples/{name}` | Names or authored project. |
+| `POST /api/validate` | Project JSON → status/hash/revision; invalid input gives 422. |
+| `POST /api/solve` | Project JSON → 202 job with immutable snapshot identity. |
+| `POST /api/replay/{plan_id}` | Same project → replay job; requires a passed matching plan. |
+| `GET /api/jobs/{id}` | Status, progress, message, sequence and optional summary. |
+| `DELETE /api/jobs/{id}` | Cooperative cancellation; watchdog stops unresponsive cancellation after three seconds on the next poll. |
+| `GET /api/results/{id}` | Numerical arrays and summary. |
+| `GET /api/results/{id}/download` | ZIP bundle. |
 
-Illustrative headless CLI:
+Job states are `running/completed/cancelled/failed`. `completed` means evidence was produced, not checks passed. Inspect numerical `check_status` or replay `status`. Unknown IDs give 404, concurrent/stale requests 409. Requests are bounded to 1 MB and a session to 64 jobs. Nonlocal hosts/origins are rejected. HTTP requests contain no filesystem path or executable model input.
 
-```text
-contact-composer validate project.json
-contact-composer solve project.json --output output/plan
-contact-composer replay project.json --trajectory output/plan --output output/replay
-contact-composer serve
-```
+The editor polls every 350 ms using revision and sequence IDs, replacing the proposed WebSocket endpoint. Solver budgets are cooperative; the job watchdog enforces an outer budget when polled. Shutdown cancels/terminates workers. This is a loopback single-user service, not an authenticated network deployment.
 
-CLI errors have nonzero exit codes and machine-readable diagnostics. A failed replay does not alter a successful planning result. File-writing commands require an explicit output path or a documented local default and do not overwrite existing results silently.
+## Bundle format 1.0
 
-## 6. Suggested stack and layout
+- `project.json`: authored snapshot.
+- `model.xml`: generated MJCF for inspection/reproduction; arbitrary imported MJCF is not executed.
+- `arrays.npz`: numerical arrays without pickle/object payloads.
+- `summary.json`: statuses, issues, thresholds, metrics and sampling/controller metadata.
+- `manifest.json`: identity, shapes, units, dependency versions and SHA-256 checksums of the other four files.
 
-| Layer | Proposed starting choice | Reason |
-| --- | --- | --- |
-| Interface | TypeScript + React + SVG/Canvas 2D | Timeline editing and a clear planar scene without a 3D asset pipeline. |
-| Local service | Python + FastAPI | Share numerical core with the CLI and expose asynchronous jobs. |
-| Numerics | NumPy + SciPy; OSQP for fixed-pose force QPs | Small CPU problems and explicit numerical statuses. |
-| Dynamics | MuJoCo | Forward simulation, articulated dynamics, and contact observations. |
-| Checks | pytest and a small browser interaction suite | Numerical/contract checks plus essential authoring flows. |
+Trajectory arrays: `time_s [N]`, `q/dq/ddq [N,11]`, `tau_reference [N,8]`, `contact_force_world [N,4,2]`, `contact_scheduled/contact_loaded [N,4]`, `endpoint_world [N,4,2]`. Replay arrays: `time_s [R]`, `q_measured/dq_measured [R,11]`, `tau_commanded [R,8]`, `measured_endpoint_world/actual_contact_forces_world [R,4,2]`.
 
-Pin a mutually compatible set of versions after the physics spike. These choices are component-local proposals, not repository-wide dependencies.
-
-```text
-contact-composer/
-  docs/REQUIREMENTS.md
-  docs/MODULES.md
-  frontend/src/{workspace,timeline,scene,inspector,diagnostics,api}/
-  src/contact_composer/
-    project/       # schema, serialization, hashes
-    models/        # built-in model and shared geometric conventions
-    schedule/      # validation and phase compilation
-    planning/      # poses and force allocation
-    trajectory/    # transitions and dense validation
-    simulation/    # controller, stepping, measurements
-    diagnostics/   # evidence records and report assembly
-    service/       # API, jobs, cancellation
-    io/            # exports and provenance
-    cli.py
-  assets/          # original primitive-model definitions
-  examples/        # projects with established expected outcomes
-  tests/           # analytical, numerical, contract and replay checks
-  README.md
-  pyproject.toml
-```
-
-Only the two design documents exist at the time of this proposal; this tree is an implementation plan.
-
-## 7. Development dependencies and gates
-
-| Stage | Main modules | Gate |
-| --- | --- | --- |
-| Physics spike | M02, M05, minimal M07 | Analytical balance agrees; fixed-pose support case and torque-driven hold are demonstrated. |
-| Authoring | M01, M03, M04, M09 | Round-trip project and edit/undo flow; event semantics and input validation pass. |
-| Motion | M05, M06, M08 | Contact-preserving trajectory; dense/event validation catches designed failures. |
-| Complete demo | M07, M08, M10 | Full support transfer passes recorded simulation criteria; failed replay remains clearly failed. |
-| Submission | All | English usage docs, relevant tests, sources/licenses, example artifacts and an honest validation statement. |
-
-The numerical prototype is the first dependency: do not build a large editor around an unverified promise of feasible contact transitions.
+Unknown samples are omitted and coverage/status reported. Inactive forces are true zeros; failed force solves never substitute fabricated zeros. Reference and measured grids remain separate; plots align timestamps, using dashed reference and solid measured traces. Writes use a temporary sibling directory and atomic rename into a new destination. Existing results are not silently overwritten. Imported passed plans are independently validated.

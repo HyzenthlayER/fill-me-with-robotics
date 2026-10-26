@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools==84.2.1"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "contact-composer"
+version = "0.1.0"
+description = "Planar contact-timeline authoring, quasi-static planning, and independent dynamics replay"
+requires-python = ">=3.11,<3.14"
+license = "Apache-2.0"
+dependencies = [
+  "numpy==2.2.6", "scipy==1.15.3", "mujoco==3.3.7", "osqp==1.0.4",
+  "fastapi==0.115.12", "pydantic==2.11.7", "uvicorn==0.34.3",
+]
+
+[project.optional-dependencies]
+test = ["pytest==8.4.1", "httpx==0.28.1"]
+
+[project.scripts]
+contact-composer = "contact_composer.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

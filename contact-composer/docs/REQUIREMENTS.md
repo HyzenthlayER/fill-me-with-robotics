@@ -1,8 +1,8 @@
 # Contact Composer — Product Requirements
 
-Version: 0.1 draft | Date: 2026-10-26 | Status: design only; not implemented or tested
+Version: 0.1 | Date: 2026-10-26 | Status: implemented first release; executed evidence in [DEBUG_LOG.md](DEBUG_LOG.md)
 
-This document specifies one proposed robotics-software contribution. Its scope and technology choices apply only to Contact Composer.
+This document records the product requirements. Its scope and technology choices apply only to Contact Composer. [MODULES.md](MODULES.md) describes the actual implementation, including bounded sampling, polling progress, and tested platform limits.
 
 ## 1. Product definition
 
@@ -28,7 +28,7 @@ The primary interaction is a four-track contact timeline synchronized with a rob
 
 A paired case removes hand support while retaining a torso/center-of-mass target that requires it under the chosen model. The comparison must actually be established by computation. Removing a hand contact is not inherently infeasible if the robot can change posture.
 
-The demonstration is a release target, not an existing result.
+The complete demonstration has passed independent torque-driven replay. The paired necessary-support comparison is established at its fixed peak pose; posture-search outcomes remain separate.
 
 ## 2. Scope and priorities
 
@@ -139,7 +139,7 @@ A floor support interval may be shown for floor-only intuition. With hand/wall c
 - Compile phases from all contact and target events. Validate both sides of each event. Contact transitions must preserve pose continuity and arrive/depart with zero endpoint velocity in the initial implementation.
 - A contact becoming active first requires an approach trajectory. A release unloads before lift-off. Noncontact motion must respect obstacle clearance and joint-rate limits.
 - The planner may propose additional time or a changed target, but applying that edit is an explicit user action.
-- Generate initial candidates on a 20 Hz grid with event alignment. Validate the final trajectory at 100 Hz, at events, and at adaptively inserted samples near small clearances. Record actual sampling and gaps.
+- Construct candidates directly at 100 Hz with event alignment. Validate those samples independently and add geometry midpoint checks near small clearances or rapid changes. Record actual sampling and gaps; no continuous-time guarantee is claimed.
 - Interpolation must preserve active-contact constraints through constrained refinement/projection and revalidation. Interpolated joint angles alone do not guarantee contact consistency.
 - Dense sampled validation is not a continuous-time mathematical guarantee.
 

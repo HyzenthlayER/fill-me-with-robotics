@@ -1,0 +1,346 @@
+{
+  "project": {
+    "schema_version": "1.0",
+    "id": "wall-assisted",
+    "name": "Wall-assisted foot lift",
+    "revision": 0,
+    "units": "SI",
+    "robot": {
+      "builtin_id": "planar-11",
+      "version": "1.0",
+      "model_hash": "9b6830dd3206541fd1a93c7fbc823901540efcb98985b5c22e206ea2f3b550f9"
+    },
+    "timeline": {
+      "tick_seconds": 0.05,
+      "duration_ticks": 240
+    },
+    "initial_state": {
+      "q": [
+        0.0, 0.6446599633843978, 0.0, 0.18, -0.36, -0.18, 0.36, 0.15, 0.4,
+        -0.25, -0.4
+      ],
+      "dq": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    },
+    "surfaces": [
+      {
+        "id": "floor",
+        "segment_start": [-1.0, 0.0],
+        "segment_end": [1.0, 0.0],
+        "normal": [0.0, 1.0],
+        "mu": 0.8,
+        "force_cap_n": 400.0
+      },
+      {
+        "id": "wall",
+        "segment_start": [0.48, 0.0],
+        "segment_end": [0.48, 1.5],
+        "normal": [-1.0, 0.0],
+        "mu": 0.8,
+        "force_cap_n": 400.0
+      }
+    ],
+    "obstacles": [],
+    "contacts": [
+      {
+        "id": "left_foot_floor",
+        "effector_id": "left_foot",
+        "surface_id": "floor",
+        "anchor_u": 0.455,
+        "start_tick": 0,
+        "end_tick": 240,
+        "mode": "stick"
+      },
+      {
+        "id": "right_foot_floor",
+        "effector_id": "right_foot",
+        "surface_id": "floor",
+        "anchor_u": 0.545,
+        "start_tick": 0,
+        "end_tick": 80,
+        "mode": "stick"
+      },
+      {
+        "id": "right_foot_return",
+        "effector_id": "right_foot",
+        "surface_id": "floor",
+        "anchor_u": 0.545,
+        "start_tick": 160,
+        "end_tick": 240,
+        "mode": "stick"
+      },
+      {
+        "id": "right_hand_wall",
+        "effector_id": "right_hand",
+        "surface_id": "wall",
+        "anchor_u": 0.5,
+        "start_tick": 40,
+        "end_tick": 200,
+        "mode": "stick"
+      }
+    ],
+    "targets": [],
+    "settings": {
+      "planning": {
+        "max_iterations": 100,
+        "timeout_s": 30.0,
+        "swing_clearance": 0.06
+      },
+      "validation": {
+        "contact_tolerance_m": 0.001,
+        "balance_tolerance": 0.0001,
+        "penetration_tolerance_m": 0.001,
+        "max_joint_speed": 1.5,
+        "max_base_speed": 0.25,
+        "inertial_ratio": 0.05
+      },
+      "replay": {
+        "controller": "whole_body",
+        "physics_dt": 0.002,
+        "control_dt": 0.01,
+        "kp": 60.0,
+        "kd": 1.0,
+        "joint_rms_rad": 0.03490658503988659,
+        "base_error_m": 0.03,
+        "pitch_error_rad": 0.08726646259971647,
+        "drift_m": 0.02,
+        "support_loss_s": 0.1,
+        "penetration_m": 0.005,
+        "saturation_fraction": 0.05
+      }
+    }
+  },
+  "model": {
+    "id": "planar-11",
+    "version": "1.0",
+    "radius": 0.015,
+    "leg_lengths": [0.32, 0.32],
+    "arm_lengths": [0.24, 0.22],
+    "hip_offsets": [-0.09, 0.09],
+    "shoulder_offsets": [-0.08, 0.08],
+    "shoulder_height": 0.28,
+    "torso_mass": 5.0,
+    "leg_masses": [0.8, 0.6],
+    "arm_masses": [0.3, 0.25],
+    "endpoint_mass": 0.02,
+    "torque_limits": [45.0, 45.0, 45.0, 45.0, 18.0, 18.0, 18.0, 18.0],
+    "joint_names": [
+      "left_hip",
+      "left_knee",
+      "right_hip",
+      "right_knee",
+      "left_shoulder",
+      "left_elbow",
+      "right_shoulder",
+      "right_elbow"
+    ],
+    "joint_limits": [
+      [-2.6, 2.6],
+      [-2.6, 2.6],
+      [-2.6, 2.6],
+      [-2.6, 2.6],
+      [-2.6, 2.6],
+      [-2.6, 2.6],
+      [-2.6, 2.6],
+      [-2.6, 2.6]
+    ],
+    "characteristic_length": 1.0,
+    "model_hash": "9b6830dd3206541fd1a93c7fbc823901540efcb98985b5c22e206ea2f3b550f9",
+    "total_mass": 8.98,
+    "torso_center": [0.0, 0.15],
+    "torso_half_size": [0.085, 0.15],
+    "collision_pairs": [
+      ["torso_geom", "surface_floor"],
+      ["torso_geom", "surface_wall"],
+      ["left_hip_geom", "surface_floor"],
+      ["left_hip_geom", "surface_wall"],
+      ["left_knee_geom", "surface_floor"],
+      ["left_knee_geom", "surface_wall"],
+      ["left_foot_geom", "surface_floor"],
+      ["left_foot_geom", "surface_wall"],
+      ["right_hip_geom", "surface_floor"],
+      ["right_hip_geom", "surface_wall"],
+      ["right_knee_geom", "surface_floor"],
+      ["right_knee_geom", "surface_wall"],
+      ["right_foot_geom", "surface_floor"],
+      ["right_foot_geom", "surface_wall"],
+      ["left_shoulder_geom", "surface_floor"],
+      ["left_shoulder_geom", "surface_wall"],
+      ["left_elbow_geom", "surface_floor"],
+      ["left_elbow_geom", "surface_wall"],
+      ["left_hand_geom", "surface_floor"],
+      ["left_hand_geom", "surface_wall"],
+      ["right_shoulder_geom", "surface_floor"],
+      ["right_shoulder_geom", "surface_wall"],
+      ["right_elbow_geom", "surface_floor"],
+      ["right_elbow_geom", "surface_wall"],
+      ["right_hand_geom", "surface_floor"],
+      ["right_hand_geom", "surface_wall"],
+      ["torso_geom", "left_foot_geom"],
+      ["torso_geom", "right_foot_geom"],
+      ["torso_geom", "left_hand_geom"],
+      ["torso_geom", "right_hand_geom"]
+    ],
+    "q_order": [
+      "base_x",
+      "base_z",
+      "base_pitch",
+      "left_hip",
+      "left_knee",
+      "right_hip",
+      "right_knee",
+      "left_shoulder",
+      "left_elbow",
+      "right_shoulder",
+      "right_elbow"
+    ]
+  },
+  "samples": [
+    {
+      "q": [
+        0.0, 0.6446599633843978, 0.0, 0.18, -0.36, -0.18, 0.36, 0.15, 0.4,
+        -0.25, -0.4
+      ],
+      "geometry": {
+        "limbs": [
+          {
+            "effector": "left_foot",
+            "points": [
+              [-0.09, 0.6446599633843978],
+              [-0.14728946349626373, 0.3298299816921989],
+              [-0.09, 0.015000000000000013]
+            ]
+          },
+          {
+            "effector": "right_foot",
+            "points": [
+              [0.09, 0.6446599633843978],
+              [0.14728946349626373, 0.3298299816921989],
+              [0.09, 0.015000000000000013]
+            ]
+          },
+          {
+            "effector": "left_hand",
+            "points": [
+              [-0.08, 0.9246599633843978],
+              [-0.11586515179366381, 0.6873549046797476],
+              [-0.23085634215840886, 0.4997995098266562]
+            ]
+          },
+          {
+            "effector": "right_hand",
+            "points": [
+              [0.08, 0.9246599633843978],
+              [0.1393769502210855, 0.6921209821738431],
+              [0.2725179594830142, 0.5169825464930509]
+            ]
+          }
+        ],
+        "base": [0.0, 0.6446599633843978, 0.0],
+        "com": [0.0013927259554129972, 0.6419350799626949],
+        "endpoints": [
+          [-0.09, 0.015000000000000013],
+          [0.09, 0.015000000000000013],
+          [-0.23085634215840886, 0.4997995098266562],
+          [0.2725179594830142, 0.5169825464930509]
+        ]
+      }
+    },
+    {
+      "q": [0.03, 0.66, 0.1, 0.18, -0.36, -0.18, 0.36, 0.15, 0.4, -0.25, -0.4],
+      "geometry": {
+        "limbs": [
+          {
+            "effector": "left_foot",
+            "points": [
+              [-0.05955037487502232, 0.6689850074982145],
+              [-0.1479841824155387, 0.3614472672387678],
+              [-0.12241148034540342, 0.04247072122192952]
+            ]
+          },
+          {
+            "effector": "right_foot",
+            "points": [
+              [0.11955037487502232, 0.6510149925017855],
+              [0.14512307694515758, 0.33203844648494724],
+              [0.056689269404641154, 0.02450070622550038]
+            ]
+          },
+          {
+            "effector": "left_hand",
+            "points": [
+              [-0.021646976561130182, 0.9465878396095935],
+              [-0.08102392678221569, 0.7140488583990388],
+              [-0.21416493604414438, 0.5389104227182464]
+            ]
+          },
+          {
+            "effector": "right_hand",
+            "points": [
+              [0.13755368988335395, 0.9306144929461011],
+              [0.17341884167701777, 0.693309434241451],
+              [0.2884100320417628, 0.5057540393883597]
+            ]
+          }
+        ],
+        "base": [0.03, 0.66, 0.1],
+        "com": [0.03111373370477385, 0.657149689054927],
+        "endpoints": [
+          [-0.12241148034540342, 0.04247072122192952],
+          [0.056689269404641154, 0.02450070622550038],
+          [-0.21416493604414438, 0.5389104227182464],
+          [0.2884100320417628, 0.5057540393883597]
+        ]
+      }
+    },
+    {
+      "q": [
+        -0.05, 0.6, -0.12, 0.28, -0.26, -0.07999999999999999,
+        0.45999999999999996, 0.25, 0.5, -0.15, -0.30000000000000004
+      ],
+      "geometry": {
+        "limbs": [
+          {
+            "effector": "left_foot",
+            "points": [
+              [-0.13935277722684797, 0.5892259013439972],
+              [-0.19033460334340668, 0.27331317066379657],
+              [-0.1583879100164217, -0.045088162225171646]
+            ]
+          },
+          {
+            "effector": "right_foot",
+            "points": [
+              [0.03935277722684796, 0.6107740986560027],
+              [0.10292696308126754, 0.2971527937468054],
+              [0.02066118647577793, -0.012091999256238772]
+            ]
+          },
+          {
+            "effector": "left_hand",
+            "points": [
+              [-0.16294410890920674, 0.868409441455969],
+              [-0.1940563031379335, 0.6304345869644199],
+              [-0.3236681498852328, 0.45266853513574656]
+            ]
+          },
+          {
+            "effector": "right_hand",
+            "points": [
+              [-0.004094727172588124, 0.8875633946221961],
+              [0.05992081763273135, 0.6562583794943824],
+              [0.17863986835420456, 0.4710401649586832]
+            ]
+          }
+        ],
+        "base": [-0.05, 0.6, -0.12],
+        "com": [-0.06325325611708149, 0.5965266428736479],
+        "endpoints": [
+          [-0.1583879100164217, -0.045088162225171646],
+          [0.02066118647577793, -0.012091999256238772],
+          [-0.3236681498852328, 0.45266853513574656],
+          [0.17863986835420456, 0.4710401649586832]
+        ]
+      }
+    }
+  ]
+}
