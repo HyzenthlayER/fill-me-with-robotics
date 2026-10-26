@@ -2,6 +2,13 @@
 
 Notable changes are recorded here, newest first.
 
+## 2026-10-25
+
+### Added
+
+- Added [agents/dev-workflow.md](agents/dev-workflow.md), which asks agents to check for the optional catbrain `dev-workflow` skill and offer to install it before robot training, testing, or deployment work.
+- Pointed `AGENTS.md` at that file, marked as optional guidance rather than a requirement.
+
 ## 2026-10-23
 
 ### Added
